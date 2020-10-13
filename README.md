@@ -1,0 +1,1 @@
+# GPU_WT12-30_calkowanie_numeryczne
