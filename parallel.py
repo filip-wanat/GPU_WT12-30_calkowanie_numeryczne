@@ -20,29 +20,31 @@ def numerical(x, step, out):
 import numpy as np
 import time
 
-# must be 
 step = 0.000001
-
-step_array = np.arange(0, 6.30, step)  # around 2 * pi
+# make array size from start to end step by step
+step_array = np.arange(0, 30.0, step)
+# make sinus values
 sin_array = np.sin(step_array)
+# empty array for results, same size as input
 out = np.empty_like(sin_array)
 
-threads_per_block = 256
-blocks_per_grid = 128
+threads_per_block = 512  # determine threads per block
+blocks_per_grid = 256  # determine blocks per grid
 
-timer = time.perf_counter()
+timer = time.perf_counter()  # start timer
+# calculate partials numerial in CPU
 for position, item in enumerate(sin_array):
     out[position] = item * step
-sum = np.sum(out)
-timer = time.perf_counter() - timer
+timer = time.perf_counter() - timer  # end timer
+sum = np.sum(out)  # sum all values to obtain numerial from sinus
 
 print(f"Sum: {sum}")
 print(f"Normal Time: {timer}")
 
-timer = time.perf_counter()
-numerical[blocks_per_grid, threads_per_block](sin_array, step, out)
-sum = np.sum(out)
-timer = time.perf_counter() - timer
+timer = time.perf_counter()  # start timer
+numerical[blocks_per_grid, threads_per_block](sin_array, step, out)  # start kernel on GPU with static defined values
+timer = time.perf_counter() - timer  # end timer
+sum = np.sum(out)  # sum all values to obtain numerial from sinus
 
 print(f"Sum: {sum}")
 print(f"CUDA Time: {timer}")
