@@ -1,4 +1,13 @@
+from math import floor
+import time
+import numpy as np
 from numba import cuda
+
+STEP = 0.000001
+END = 30.0
+
+threads_per_block = 512  # determine threads per block
+blocks_per_grid = 256  # determine blocks per grid
 
 
 @cuda.jit
@@ -17,34 +26,85 @@ def numerical(x, step, out):
         out[i] = x[i] * step
 
 
-import numpy as np
-import time
+def cpu(fun_array, step, out):
+    for position, item in enumerate(fun_array):
+        out[position] = item * step
 
-step = 0.000001
-# make array size from start to end step by step
-step_array = np.arange(0, 30.0, step)
-# make sinus values
-sin_array = np.sin(step_array)
-# empty array for results, same size as input
-out = np.empty_like(sin_array)
 
-threads_per_block = 512  # determine threads per block
-blocks_per_grid = 256  # determine blocks per grid
+def gpu_cpu_split(fun_array, step, out, gpu_usage, END):
+    # find index that will split fun_array into two
+    gpu_last_index = floor(gpu_usage*END/step)
+    # split fun_array accroding to index
+    gpu_array = fun_array[:gpu_last_index]
+    cpu_array = fun_array[gpu_last_index:]
 
-timer = time.perf_counter()  # start timer
-# calculate partials numerial in CPU
-for position, item in enumerate(sin_array):
-    out[position] = item * step
-timer = time.perf_counter() - timer  # end timer
-sum = np.sum(out)  # sum all values to obtain numerial from sinus
+    # make operations on cpu
+    cpu_out = np.empty_like(cpu_array)
+    cpu(cpu_array, step, cpu_out)
 
-print(f"Sum: {sum}")
-print(f"Normal Time: {timer}")
+    # make operations on gpu
+    gpu_out = np.empty_like(gpu_array)
+    numerical[blocks_per_grid, threads_per_block](gpu_array, step, gpu_out)
 
-timer = time.perf_counter()  # start timer
-numerical[blocks_per_grid, threads_per_block](sin_array, step, out)  # start kernel on GPU with static defined values
-timer = time.perf_counter() - timer  # end timer
-sum = np.sum(out)  # sum all values to obtain numerial from sinus
+    # combine arrays
+    output = np.empty_like(fun_array)
+    output[:gpu_last_index] = gpu_out
+    output[gpu_last_index:] = cpu_out
 
-print(f"Sum: {sum}")
-print(f"CUDA Time: {timer}")
+    return output
+
+
+def main(END):
+    with open(f'result{int(END)}.txt', "w") as file:
+        print(f"END:\t\t\t{END}")
+        print(f"STEP:\t\t\t{STEP}\n")
+        file.write(f"END:\t\t\t\t{END}\n")
+        file.write(f"STEP:\t\t\t\t{STEP}\n\n")
+
+        # make array size from start to end step by step
+        step_array = np.arange(0, END, STEP)
+        # make sinus values
+        sin_array = np.sin(step_array)
+        # empty array for results, same size as input
+        out = np.empty_like(sin_array)
+
+        timer = time.perf_counter()  # start timer
+        # calculate partials numerial in CPU
+        out = np.empty_like(out)
+        cpu(sin_array, STEP, out)
+        timer = time.perf_counter() - timer  # end timer
+        sum = np.sum(out)  # sum all values to obtain numerial from sinus
+        print(f"Sum:\t\t\t{sum}")
+        print(f"0.0% GPU Time [s]:\t{timer}\n")
+        file.write(f"Sum:\t\t\t\t{sum}\n")
+        file.write(f"0.0% GPU Time [s]:\t{timer}\n\n")
+
+        for SPLIT in np.arange(0.05, 1.0, 0.05):
+
+            out = np.empty_like(sin_array)
+            timer = time.perf_counter()
+            output = gpu_cpu_split(sin_array, STEP, out, SPLIT, END)
+            timer = time.perf_counter() - timer
+            sum = np.sum(output)
+
+            print(f"Sum:\t\t\t{sum}")
+            print(f"{floor(SPLIT*100)}.0% GPU Time [s]:\t{timer}\n")
+            file.write(f"Sum:\t\t\t\t{sum}\n")
+            file.write(f"{floor(SPLIT*100)}.0% GPU Time [s]:\t{timer}\n\n")
+
+        timer = time.perf_counter()  # start timer
+        # start kernel on GPU with static defined values
+        out = np.empty_like(sin_array)
+        numerical[blocks_per_grid, threads_per_block](sin_array, STEP, out)
+        timer = time.perf_counter() - timer  # end timer
+        timer2 = time.perf_counter()
+        sum = np.sum(out)  # sum all values to obtain numerial from sinus
+        timer2 = time.perf_counter()-timer2
+        print(f"Sum:\t\t\t{sum}")
+        print(f"100.0% GPU Time [s]:\t{timer}\n")
+        file.write(f"Sum:\t\t\t\t{sum}\n")
+        file.write(f"100.0% GPU Time [s]:\t{timer}\n\n")
+
+
+for END in np.arange(1.0, 21.0, 1.0):
+    main(END)
