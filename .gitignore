@@ -129,4 +129,4 @@ dmypy.json
 .pyre/
 Pipfile
 Pipfile.lock
-*txt
+/*.txt
