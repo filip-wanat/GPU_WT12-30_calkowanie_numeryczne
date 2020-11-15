@@ -2,6 +2,7 @@ from math import floor
 import time
 import numpy as np
 from numba import cuda
+from utils.print_line import Printer
 
 STEP = 0.000001
 END = 30.0
@@ -55,11 +56,10 @@ def gpu_cpu_split(fun_array, step, out, gpu_usage, END):
 
 
 def main(END):
-    with open(f'result{int(END)}.txt', "w") as file:
+    with Printer(f"result/result-{int(END)}", "csv") as printer:
         print(f"END:\t\t\t{END}")
         print(f"STEP:\t\t\t{STEP}\n")
-        file.write(f"END:\t\t\t\t{END}\n")
-        file.write(f"STEP:\t\t\t\t{STEP}\n\n")
+        printer.print(f"Sum;Percent GPU Time [s];time;STEP:{STEP};END:{END}\n")
 
         # make array size from start to end step by step
         step_array = np.arange(0, END, STEP)
@@ -76,8 +76,7 @@ def main(END):
         sum = np.sum(out)  # sum all values to obtain numerial from sinus
         print(f"Sum:\t\t\t{sum}")
         print(f"0.0% GPU Time [s]:\t{timer}\n")
-        file.write(f"Sum:\t\t\t\t{sum}\n")
-        file.write(f"0.0% GPU Time [s]:\t{timer}\n\n")
+        printer.printValues(sum,0,timer)
 
         for SPLIT in np.arange(0.05, 1.0, 0.05):
 
@@ -89,8 +88,7 @@ def main(END):
 
             print(f"Sum:\t\t\t{sum}")
             print(f"{floor(SPLIT*100)}.0% GPU Time [s]:\t{timer}\n")
-            file.write(f"Sum:\t\t\t\t{sum}\n")
-            file.write(f"{floor(SPLIT*100)}.0% GPU Time [s]:\t{timer}\n\n")
+            printer.printValues(sum,floor(SPLIT*100),timer)
 
         timer = time.perf_counter()  # start timer
         # start kernel on GPU with static defined values
@@ -102,8 +100,7 @@ def main(END):
         timer2 = time.perf_counter()-timer2
         print(f"Sum:\t\t\t{sum}")
         print(f"100.0% GPU Time [s]:\t{timer}\n")
-        file.write(f"Sum:\t\t\t\t{sum}\n")
-        file.write(f"100.0% GPU Time [s]:\t{timer}\n\n")
+        printer.printValues(sum,100,timer)
 
 
 for END in np.arange(1.0, 21.0, 1.0):
